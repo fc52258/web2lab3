@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>Asteroidi</title>
+    <style>
+        body {
+            background-color: #D5EFD1;
+            display: grid;
+            place-items: center;
+            margin: 25px;
+        }
+        canvas {
+            background:url(stars.gif);
+            background-size: cover;
+            border: 15px ridge #222322;
+            display: block;
+            align-self: center;
+            background-attachment: fixed;
+        }
+        button {
+            display: none;
+            margin-top: 15px;
+        }
+        .button-85 {
+            padding: 0.6em 2em;
+            border: none;
+            outline: none;
+            color: rgb(255, 255, 255);
+            background: #111;
+            cursor: pointer;
+            position: relative;
+            z-index: 0;
+            border-radius: 10px;
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+        }
+        .button-85:before {
+            content: "";
+            background: linear-gradient(
+                45deg,
+                #ff0000,
+                #ff7300,
+                #fffb00,
+                #48ff00,
+                #00ffd5,
+                #002bff,
+                #7a00ff,
+                #ff00c8,
+                #ff0000
+            );
+            position: absolute;
+            top: -2px;
+            left: -2px;
+            background-size: 400%;
+            z-index: -1;
+            filter: blur(5px);
+            -webkit-filter: blur(5px);
+            width: calc(100% + 4px);
+            height: calc(100% + 4px);
+            animation: glowing-button-85 20s linear infinite;
+            transition: opacity 0.3s ease-in-out;
+            border-radius: 10px;
+        }
+        @keyframes glowing-button-85 {
+            0% {
+                background-position: 0 0;
+            }
+            50% {
+                background-position: 400% 0;
+            }
+            100% {
+                background-position: 0 0;
+            }
+        }
+        .button-85:after {
+            z-index: -1;
+            content: "";
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background: #222;
+            left: 0;
+            top: 0;
+            border-radius: 10px;
+        }
+        
+    </style>
+
+    <script>
+        var numOfPieces = 1;  // broj asteroida
+        var myGamePieces; //polje za asteroide
+        var myPlayer;  // objekt igrača
+        var startTime; // vrijeme početka igre
+        var bestTime; // najbolje vrijeme iz lokalne pohrane
+
+        const collisionSound = new Audio('./collision.mp3'); // putanja do zvuka
+
+        function playCollisionSound() { // funkcija za proizvodnju zvuka prilikom sudara
+            collisionSound.play();
+        }
+
+        function startGame() { // funkcija za početak igre
+            window.addEventListener("keydown", handleKeyDown); //event listener
+            myGamePieces = getAsteroids(numOfPieces); //dohvati početne asteroide
+            myPlayer = getPlayer(); //dohvati igrača
+            startTime = Date.now(); // Bilježenje vremena početka igre
+            myGameArea.start(); // pokreni interakciju
+
+            addComponentInterval = setInterval(addNewAsteroid, 5000); //svakih 5 sec dodaj novi asteroid
+        }
+        
+        function handleKeyDown(event) { // funkcija za kontolu kretanja igrača
+            switch (event.key) {
+                case "ArrowUp":
+                    myPlayer.newPos('up');
+                    break;
+                case "ArrowDown":
+                    myPlayer.newPos('down');
+                    break;
+                case "ArrowLeft":
+                    myPlayer.newPos('left');
+                    break;
+                case "ArrowRight":
+                    myPlayer.newPos('right');
+                    break;
+            }
+        }
+
+        function getPlayer() { //funkcija dohvata igrača
+            return new Player(70, 70, "./spaceship.png", 250, 250);
+        }
+
+        function getRandomX() { // funkcija dohvata random x pozicije izvan canvasa
+            return Math.random() < 0.5 ? -100 : myGameArea.canvas.width + 250;
+        }
+
+        function getRandomY() { // funkcija dohvata random y pozicije izvan canvasa
+            return Math.random() < 0.5 ? -100 : myGameArea.canvas.height + 250;
+        }
+
+        function getAsteroids(num) { // funkcija dohvata određenog broja asteroida 
+            var asteroids = [];
+            for (var i = 0; i < num; i++) {
+                asteroids.push(new asteroid(50, 50, "./asteroid.png", getRandomX(), getRandomY()))
+            }
+            return asteroids;
+        }
+
+        function addNewAsteroid() { // funkcija koja stvara još jedan asteroid
+            myGamePieces.push(new asteroid(50, 50, "./asteroid.png", getRandomX(), getRandomY())); // dodajemo novu komponentu u polje myGamePieces
+            numOfPieces++; // povećavamo broj asteroida
+        }
+
+        var myGameArea = { //objekt za upravljanje igrom
+            canvas: document.createElement("canvas"), //stvori elemnt tipa canvas
+            start: function () {
+                this.canvas.id = "myGameCanvas";
+                this.canvas.width = 500; // dimenzije canvasa
+                this.canvas.height = 500;
+                this.context = this.canvas.getContext("2d"); 
+                document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+                this.frameNo = 0;
+                this.interval = setInterval(updateGameArea, 25); //interval osvježivanja canvasa
+                this.player = getPlayer(); //dohvati igrača
+                bestTime = localStorage.getItem("bestTime") || 0; // dohvaćanje najboljeg vremena iz lokalne pohrane
+            },
+            stop: function () {
+                clearInterval(this.interval); //zaustavi interval
+                checkBestTime(); // provjera i ažuriranje najboljeg vremena
+            },
+            clear: function () { // obriši canvas
+                this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
+            },
+            getStatus: function () { //funkcija koja definira labele u kanvasu za broj asteroida, vrijeme igre i nabolje vrijeme igre
+                this.context.font = "bold 17px calibri"; // font labela
+                this.context.fillStyle = "#ffffff"; // boje labela
+                this.context.fillText("Broj asteroida: " + numOfPieces, 310, 25);
+                this.context.fillText("Vaše vrijeme: " + formatTime(Date.now() - startTime), 310, 50);
+                this.context.fillText("Najbolje vrijeme: " + formatTime(bestTime), 310, 75);
+            },
+            endGame: function () { // funkcija kojom se završava igra
+                this.clear();
+                this.context.fillStyle = "#ffffff";
+                this.context.font = "bold 50px Calibri";
+                this.context.bp
+                this.context.fillText("Izgubili ste", 130, 250); // ispiši tekst nakon poraza
+                var again = document.getElementById("again"); // dohvati gumb za ponovnu igru
+                again.style.display = "block";
+            }
+
+        }
+
+        function Player(width, height, imgSrc, x, y, type) { //funkcija koja definira objekt igrača
+            this.speed = 20; //konstantna brzina igrača
+            this.x = x; //koordinata x
+            this.y = y; // koordinata y
+            this.width = width; // širina elementa
+            this.height = height; // visina elementa
+            this.img = new Image(); // slika
+            this.img.src = imgSrc; // dohvat slike 
+
+
+            this.update = function () { // osvježivanje objekta igrača
+                ctx = myGameArea.context;
+                ctx.drawImage(this.img, this.x, this.y, this.width, this.height); // nacrtaj sliku svemirskog broda
+            }
+
+            this.newPos = function (direction) { // funkcija koja definira kretanje igrala u odnosu na smjer strelice koju je kprisnik pritisnuo
+                switch (direction) {
+                    case "up":
+                        this.y -= this.speed;
+                        break;
+                    case "down":
+                        this.y += this.speed;
+                        break;
+                    case "left":
+                        this.x -= this.speed;
+                        break;
+                    case "right":
+                        this.x += this.speed;
+                        break;
+                }
+
+                // igrač će se pojaviti s druge strane ekrana ako izađe izvan granica
+                if (this.x > myGameArea.canvas.width) {
+                    this.x = 0 - this.width;  // oduzimanje širine objekta igrača
+                } else if (this.x < 0 - this.width) {
+                    this.x = myGameArea.canvas.width;
+                }
+
+                if (this.y > myGameArea.canvas.height) {
+                    this.y = 0 - this.height;  //  oduzimanje visine objekta igrača
+                } else if (this.y < 0 - this.height) {
+                    this.y = myGameArea.canvas.height;
+                }
+                        }
+        }
+
+        function asteroid(width, height, imgSrc, x, y, type) { // definiranje objekta asteroida
+            this.type = type;
+            this.width = width; // širina asteroida
+            this.height = height; // visina asteroida
+            this.speed_x = Math.random() * 6 + 2; // brzina kretanja po x
+            this.speed_y = Math.random() * 6 + 2; // brzina kretanja po y
+            this.x = x; // koordinata x
+            this.y = y; // koordinata y
+            this.img = new Image(); // definicija slike
+            this.img.src = imgSrc; // postavljanje putanje na parametar imgSrc
+
+            this.update = function () { // funkcija osvježivanja objekta asteroida
+                ctx = myGameArea.context;
+                ctx.drawImage(this.img, this.x, this.y, this.width, this.height); // nacrtaj sliku asteroida
+                ctx.save();
+                ctx.translate(this.x, this.y); // translatiraj
+                ctx.restore();
+            }
+
+            this.newPos = function () { // funkcija definira gibanje asteroida 
+                if (this.x - this.width / 2 < 0)
+                    this.speed_x = Math.random() * 6 + 2;
+                else if ((this.x + this.width / 2) >= myGameArea.context.canvas.width)
+                    this.speed_x = -(Math.random() * 6 + 2);
+                if (this.y - this.height / 2 < 0)
+                    this.speed_y = -(Math.random() * 6 + 2);
+                else if ((this.y + this.height / 2) >= myGameArea.context.canvas.height)
+                    this.speed_y = Math.random() * 6 + 2;
+                this.x += this.speed_x;
+                this.y -= this.speed_y;
+
+                // provjera sudara asteroida s igračem
+                if (
+                    this.x < myPlayer.x + myPlayer.width*0.5 &&
+                    this.x + this.width*0.5 > myPlayer.x &&
+                    this.y < myPlayer.y + myPlayer.height*0.5 &&
+                    this.y + this.height*0.5 > myPlayer.y
+                ) {
+                    playCollisionSound();// pokreni zvuk pri sudaru
+                    myGameArea.stop();//zaustavi igru
+                    myGameArea.endGame();// završi igru
+                }
+            }
+        }
+
+        function updateGameArea() { // funkcija osvježivanja canvasa
+            myGameArea.clear();
+            myPlayer.newPos(); // kretanje igrača
+            myPlayer.update(); // osježivanje igrača
+            myGamePieces.forEach(element => { // kroz sve asteroide
+                element.newPos(); // kretanje asteroida
+                element.update(); // osvježivanje asteroida
+            });
+            myGameArea.getStatus(); // dohvati labele
+        }
+
+        function checkBestTime() { // funkcija za provjeru  najboljeg vremena
+            var elapsedTime = Date.now() - startTime; // vrijeme prošlo od početka igre
+            if (elapsedTime > bestTime) { // ako je bolje od najboljeg vremena postavi ga za novo najbolje vrijeme
+                bestTime = elapsedTime;
+                localStorage.setItem("bestTime", bestTime);
+            }
+        }
+
+        function formatTime(milliseconds) { // formatiraj milisekunde u hh:mm:ss
+            var minutes = Math.floor(milliseconds / 60000);
+            var seconds = ((milliseconds % 60000) / 1000).toFixed(3);
+            return minutes + ":" + (seconds < 10 ? '0' : '') + seconds;
+        }
+    </script>
+</head>
+
+<body onload="startGame()">
+    <button class="button-85" role="button" style="text-align: center;" id="again" onclick="location.reload()">
+        <h1>Pokušaj ponovo</h1>
+    </button>
+    <img id="spaceship" src="./spaceship.png" style="display: none;"> <!-- Dodajte ovu liniju -->
+    <img id="asteroid" src="./asteroid.png" style="display: none;"> <!-- Dodajte ovu liniju -->
+</body>
+
+</html>
